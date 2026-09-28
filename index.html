@@ -458,6 +458,19 @@ header{flex:none;padding:6px 10px 0;background-color:var(--surface);background-i
 .thm .sw{width:34px;height:34px;border-radius:10px;flex:none;box-shadow:inset 0 0 0 1px rgba(128,128,128,.35)}
 .thm b{display:block;font-size:14px;font-weight:680}
 .thm span{display:block;font-size:11.5px;color:var(--muted);margin-top:2px}
+.rdays{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-top:10px}
+.rdays button{height:38px;border-radius:12px;background:var(--card2);font-weight:720;font-size:13.5px;color:var(--muted);transition:background .15s,color .15s}
+.rdays button.on{background:var(--text);color:var(--ontext)}
+.blk .btm svg{display:inline-block;vertical-align:-1.5px;margin-right:3px}
+#emptyHint{position:absolute;left:12px;right:12px;padding:14px 16px;border-radius:14px;border:1.5px dashed var(--line2);color:var(--muted);font-size:13.5px;line-height:1.4;text-align:center;pointer-events:none}
+.rs{display:flex;align-items:center;gap:11px;padding:9px 0;border-top:1px solid var(--line)}
+.rs:first-child{border-top:0}
+.rs .sw{width:7px;height:32px;border-radius:4px;background:var(--c);flex:none}
+.rs .t{flex:1;min-width:0}
+.rs .t b{font-weight:650;font-size:14.5px}
+.rs .t span{display:block;font-size:12px;color:var(--muted);margin-top:2px}
+.rs .btn{height:34px;font-size:13px;padding:0 13px;flex:none}
+
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{transition-duration:.01ms!important;animation-duration:.01ms!important}}
 </style>
 </head>
@@ -517,6 +530,7 @@ const todayS=()=>ds(new Date());
 const nowMin=()=>{const d=new Date();return d.getHours()*60+d.getMinutes()+d.getSeconds()/60};
 const weekStart=s=>{const d=pd(s);d.setDate(d.getDate()-d.getDay());return ds(d)};
 const DOW=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const DOWL=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 const MON=['January','February','March','April','May','June','July','August','September','October','November','December'];
 const MONS=MON.map(m=>m.slice(0,3));
 const lc=s=>String(s||'').trim().toLowerCase();
@@ -557,6 +571,7 @@ const IC={
   plus:'<path d="M12 5v14M5 12h14"/>',
   x:'<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>',
   pencil:'<path d="M4.5 19.5h4l10-10-4-4-10 10v4zM13 7l4 4"/>',
+  repeat:'<path d="M16.5 3l3 3-3 3"/><path d="M4.5 11.5V10a4 4 0 0 1 4-4h11"/><path d="M7.5 21l-3-3 3-3"/><path d="M19.5 12.5V14a4 4 0 0 1-4 4h-11"/>',
   strive:'<path d="M2.5 20.5L9.5 9l3.2 5.2 2.1-3.2 6.7 9.5z"/><path d="M9.5 9V3.2l4.2 1.6-4.2 1.7"/>'
 };
 const svg=(n,s=22,w=2)=>`<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IC[n]}</svg>`;
@@ -572,6 +587,7 @@ function fix(o){
   o.hlog=o.hlog&&typeof o.hlog==='object'?o.hlog:{};o.log=Array.isArray(o.log)?o.log:[];
   if(!Array.isArray(o.goals))o.goals=o.v===1&&o.blocks&&o.blocks.length?sampleGoals(o.habits):[];
   o.goals.forEach(g=>{g.habits=Array.isArray(g.habits)?g.habits:[];g.checks=Array.isArray(g.checks)?g.checks:[];g.notes=g.notes||''});
+  o.series=Array.isArray(o.series)?o.series:[];o.series.forEach(r=>{r.days=Array.isArray(r.days)?r.days:[];r.gen=r.gen||{};r.skip=r.skip||{}});
   o.timer=o.timer&&typeof o.timer==='object'?o.timer:null;o.theme=o.theme||'system';o.inclManual=o.inclManual!==false;o.v=1;return o;
 }
 function load(){try{const raw=localStorage.getItem(KEY);if(raw){const o=JSON.parse(raw);if(o&&o.v===1)return fix(o)}}catch(e){}return null}
@@ -596,6 +612,7 @@ function sampleGoals(habits){
     {id:uid(),name:'Kickflip the 5-stair',color:'#20B8A8',habits:[...H('Stretch')],checks:[ck('Kickflips on flat, 8 of 10',1),ck('Kickflip off a curb'),ck('3-stair'),ck('5-stair')],notes:'',created:Date.now()}
   ];
 }
+function blankState(templates){return fix({v:1,templates:templates||seed().templates,blocks:[],habits:[],hlog:{},log:[],goals:[],series:[],timer:null,theme:'system',inclManual:true})}
 function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
 function seed(){
   const R=mulberry32(20260923), rn=(m,sd)=>m+(R()+R()+R()-1.5)*sd*1.3, pick=a=>a[Math.floor(R()*a.length)];
@@ -734,13 +751,31 @@ function blockInner(b,h){
   const hasV=t&&t.vars.length;
   const ctl=`<div class="bctl">${hasV?`<button class="bvar" data-a="bvar" data-id="${b.id}" aria-label="Variations">${svg('chev',15,2.4)}</button>`:''}<button class="bchk" data-a="bchk" data-id="${b.id}" aria-label="Done">${svg('check',14,3)}</button></div><div class="brz"></div>`;
   const nm=`<span class="bn">${esc(b.name)}</span>`,vn=v?esc(v.name):'';
-  if(h<42)return `<div class="bt">${nm}${vn?` <span class="bv">${vn}</span>`:''}</div><div class="btm">${fmtT(b.start)}</div>`+ctl;
-  if(h<60)return `<div class="bt">${nm}${vn?` <span class="bv">${vn}</span>`:''}</div><div class="btm">${fmtR(b.start,e)}</div>`+ctl;
+  const rp=b.seriesId?svg('repeat',11,2.4):'';
+  if(h<42)return `<div class="bt">${nm}${vn?` <span class="bv">${vn}</span>`:''}</div><div class="btm">${rp}${fmtT(b.start)}</div>`+ctl;
+  if(h<60)return `<div class="bt">${nm}${vn?` <span class="bv">${vn}</span>`:''}</div><div class="btm">${rp}${fmtR(b.start,e)}</div>`+ctl;
   const note=(b.notes||'').trim()||(v&&v.notes||'').trim();
-  return `<div class="bt">${nm}</div>${vn?`<div class="bv2">${vn}</div>`:''}<div class="btm">${fmtR(b.start,e)}</div>${h>=100&&note?`<div class="bnote" style="max-height:${h-70}px">${esc(note)}</div>`:''}`+ctl;
+  return `<div class="bt">${nm}</div>${vn?`<div class="bv2">${vn}</div>`:''}<div class="btm">${rp}${fmtR(b.start,e)}</div>${h>=100&&note?`<div class="bnote" style="max-height:${h-70}px">${esc(note)}</div>`:''}`+ctl;
 }
+function ensureDate(date){
+  let made=false;const dow=pd(date).getDay();
+  for(const r of S.series){
+    if(!r.days.includes(dow)||date<r.from||(r.until&&date>r.until)||r.gen[date]||r.skip[date])continue;
+    r.gen[date]=1;made=true;
+    S.blocks.push({id:uid(),date,start:r.start,dur:r.dur,tplId:r.tplId,name:r.name,color:r.color,varId:r.varId,notes:r.notes||'',done:false,seriesId:r.id});
+  }
+  if(made)save();return made;
+}
+function refreshSeries(r,after){
+  S.blocks=S.blocks.filter(b=>!(b.seriesId===r.id&&b.date>after&&!b.done&&!b.moved&&!b.ghost&&(b.notes||'')===(r.notes||'')));
+  const keep=new Set(S.blocks.filter(b=>b.seriesId===r.id).map(b=>b.date));
+  for(const d in r.gen)if(d>after&&!keep.has(d))delete r.gen[d];
+}
+function daysText(days){const d=[...days].sort((a,b)=>((a+6)%7)-((b+6)%7));if(d.length===7)return'every day';if(d.length===5&&[1,2,3,4,5].every(x=>d.includes(x)))return'every weekday';if(d.length===2&&d.includes(0)&&d.includes(6))return'every weekend';
+  const n=d.map(x=>DOW[x]);return'every '+(n.length>1?n.slice(0,-1).join(', ')+' and '+n[n.length-1]:DOWL[d[0]])}
 function renderDay(){
   if(dayKey!==V.date){E.track.innerHTML='';els.clear();dayKey=V.date}
+  ensureDate(V.date);
   const list=S.blocks.filter(b=>b.date===V.date),lay=layout(list),seen=new Set();
   for(const b of list){
     const L=lay.get(b.id),h=Math.max(MINH,b.dur*HOUR/60-2),t=tplOf(b),hasV=!b.ghost&&t&&t.vars.length;
@@ -756,6 +791,11 @@ function renderDay(){
     seen.add(b.id);
   }
   for(const [id,el] of els)if(!seen.has(id)){el.remove();els.delete(id)}
+  let eh=$('#emptyHint',E.track);
+  if(!list.some(b=>!b.ghost)){const at=V.date===todayS()?Math.min(nowMin()+30,21*60):9*60;
+    if(!eh){eh=document.createElement('div');eh.id='emptyHint';eh.textContent='Nothing planned. Open Activities below and drag one onto the day, or tap one to drop it in. Tap a block to make it repeat weekly.';E.track.appendChild(eh)}
+    eh.style.top=minToY(at)+'px'}
+  else if(eh)eh.remove();
   let nl=$('#nowline',E.track);
   if(V.date===todayS()){if(!nl){nl=document.createElement('div');nl.id='nowline';E.track.appendChild(nl)}nl.style.top=minToY(nowMin())+'px'}
   else if(nl)nl.remove();
@@ -954,7 +994,7 @@ function dragUpdate(){
   if(s!==G.newStart){G.newStart=s;G.el.style.top=minToY(s)+'px';const tm=$('.btm',G.el);if(tm)tm.textContent=G.el.classList.contains('compact')?fmtT(s):fmtR(s,s+b.dur)}
 }
 function endDrag(){
-  const b=G.b,el=G.el;el.classList.remove('lift');
+  const b=G.b,el=G.el;el.classList.remove('lift');el._in='';
   if(G.newStart!==G.orig){b.start=G.newStart;const ghost=recordMove(b,G.orig);save();renderDay();
     if(ghost)toast('Moved later, marker left where it was planned',G.snap)}
 }
@@ -979,7 +1019,7 @@ function resizeUpdate(){
   const b=G.b,d=clamp(snapM(yToMin(G.y-colTop()))-b.start,15,1440-b.start);
   if(d!==G.newDur){G.newDur=d;G.el.style.height=Math.max(MINH,d*HOUR/60-2)+'px';const tm=$('.btm',G.el);if(tm&&!G.el.classList.contains('compact'))tm.textContent=fmtR(b.start,b.start+d)}
 }
-function endResize(){const el=G.el;el.classList.remove('lift');el.style.transition='';if(G.newDur!==G.orig){G.b.dur=G.newDur;save()}renderDay()}
+function endResize(){const el=G.el;el.classList.remove('lift');el._in='';el.style.transition='';if(G.newDur!==G.orig){G.b.dur=G.newDur;save()}renderDay()}
 
 /* chip drag */
 let dropEl=null;
@@ -1062,6 +1102,12 @@ function blockSheet(id){
   if(t&&t.vars.length)h+=`<div class="sec"><div class="lbl">Variation</div><div class="pills"><button class="pill${!v?' on':''}" data-a="bvp" data-v="">Default <em>${fmtDur(t.dur)}</em></button>${t.vars.map(x=>`<button class="pill${v&&v.id===x.id?' on':''}" data-a="bvp" data-v="${x.id}">${esc(x.name)} <em>${fmtDur(x.dur)}</em></button>`).join('')}</div></div>`;
   h+=`<div class="sec"><div class="row2"><div><div class="lbl">Starts</div><div class="stp"><button data-a="bst" data-d="-15">−</button><b>${fmtT(b.start)}</b><button data-a="bst" data-d="15">+</button></div></div>
     <div><div class="lbl">Length</div><div class="stp"><button data-a="bdur" data-d="-15">−</button><b>${fmtDur(b.dur)}</b><button data-a="bdur" data-d="15">+</button></div></div></div></div>`;
+  {const r=b.seriesId&&S.series.find(x=>x.id===b.seriesId),dow=pd(b.date).getDay(),days=r&&(!r.until||b.date<=r.until)?r.days:[];
+    const same=a=>days.length===a.length&&a.every(x=>days.includes(x));
+    h+=`<div class="sec"><div class="lbl">Repeat</div><div class="pills">${[['off','Off',!days.length],['wk','Every '+DOWL[dow],same([dow])],['wd','Weekdays',same([1,2,3,4,5])],['ev','Every day',same([0,1,2,3,4,5,6])]].map(([k,l,on])=>`<button class="pill${on?' on':''}" data-a="rpill" data-v="${k}">${l}</button>`).join('')}</div>
+      <div class="rdays">${DOW.map((d,i)=>`<button class="${days.includes(i)?'on':''}" data-a="rday" data-v="${i}" aria-label="${DOWL[i]}">${d[0]}</button>`).join('')}</div>
+      <p class="hint" style="margin-top:9px">${days.length?`Repeats ${daysText(days)} at ${fmtT(r.start)}. Changing just this one doesn't touch the others.`:'Pick days to make this part of your weekly schedule.'}</p>
+      ${days.length&&(r.start!==b.start||r.dur!==b.dur||r.varId!==b.varId)?`<button class="btn wide" style="margin-top:10px" data-a="ruse">Use ${fmtR(b.start,b.start+b.dur)} for every repeat</button>`:''}</div>`;}
   let st=statOf(runs(b.name,v?v.name:null)),lab=v?v.name:b.name;if(v&&!st.n){st=statOf(runs(b.name));lab=b.name}
   if(st.n){const diff=Math.round(st.avg/60)-b.dur;
     h+=`<div class="insight"><div style="flex:1;min-width:0"><div class="big">${fmtS(st.avg)}</div><div class="sub">What ${esc(lab)} actually takes you, averaged over ${st.n} timed run${st.n>1?'s':''}. ${Math.abs(diff)<5?'Right on plan.':`That's ${fmtDur(Math.abs(diff))} ${diff>0?'longer':'shorter'} than planned.`}</div></div>${Math.abs(diff)>=5?'<button class="btn" data-a="buse">Use it</button>':''}</div>`;
@@ -1175,6 +1221,12 @@ function openTemplate(id){
 function tpPrevUpdate(){const d=V.tdraft,p=$('#tpPrev',E.sheet);if(!p)return;p.setAttribute('style',cv(d.color));p.innerHTML=`<b>${esc(d.name||'Activity')}</b><span>${fmtDur(d.dur)}${d.vars.length?`, ${d.vars.length} variation${d.vars.length>1?'s':''}`:''}</span>`}
 
 /* settings sheet */
+function seriesList(){
+  const t=todayS(),act=S.series.filter(r=>r.days.length&&(!r.until||r.until>=t));
+  if(!act.length)return'<p class="hint">Nothing repeats yet. Tap a block and pick days under Repeat.</p>';
+  return act.map(r=>{const tp=tplById(r.tplId),v=tp&&r.varId?tp.vars.find(x=>x.id===r.varId):null;
+    return `<div class="rs" style="${cv(r.color)}"><span class="sw"></span><span class="t"><b>${esc(r.name)}${v?' '+esc(v.name):''}</b><span>${daysText(r.days)}, ${fmtR(r.start,r.start+r.dur)}</span></span><button class="btn" data-a="rstop" data-r="${r.id}">Stop</button></div>`}).join('');
+}
 function openSettings(){
   openSheet('settings',()=>`<div class="sh-title">Backup & settings</div>
     <div class="sec"><div class="lbl">Appearance</div><div class="themes">${[['system','Match phone','Sand or Forest','linear-gradient(135deg,#F3EDE3 50%,#0C1F16 50%)'],['light','Light','Sand','#F3EDE3'],['dark','Dark','Forest','#0C1F16'],['navy','Dark paper','Navy','#0F1422']].map(([k,l,sub,bg])=>`<button class="thm${S.theme===k?' on':''}" data-a="theme" data-v="${k}"><span class="sw" style="background:${bg}"></span><span><b>${l}</b><span>${sub}</span></span></button>`).join('')}</div></div>
@@ -1182,8 +1234,10 @@ function openSettings(){
       <button class="btn wide" data-a="bkcopy">Copy backup</button>
       <textarea class="field mono" id="bkin" rows="4" style="margin-top:10px" placeholder="Paste a backup here"></textarea>
       <button class="btn wide" style="margin-top:8px" data-a="bkrestore">Restore from backup</button></div>
-    <div class="sec"><div class="lbl">Sample data</div><div class="row2"><button class="btn" data-a="sample">Load sample week</button><button class="btn danger" data-a="clear">Clear my schedule</button></div>
-      <p class="hint" style="margin-top:9px">Clearing removes blocks, habit check-ins and the timing log. Your activities and habits stay.</p></div>
+    <div class="sec"><div class="lbl">Repeating blocks</div>${seriesList()}</div>
+    <div class="sec"><div class="lbl">Data</div><div class="row2"><button class="btn" data-a="clear">Clear schedule</button><button class="btn danger" data-a="fresh">Start fresh</button></div>
+      <button class="btn wide" style="margin-top:8px" data-a="sample">Load sample week</button>
+      <p class="hint" style="margin-top:9px">Clear schedule removes blocks, repeats, check-ins and the timing log but keeps activities, habits and goals. Start fresh also removes habits and goals. Both can be undone right after.</p></div>
     <div class="sec"><div class="lbl">On your home screen</div><p class="hint">Open this page in Safari, tap Share, then Add to Home Screen. It opens full screen like a normal app and works offline.</p></div>`);
 }
 
@@ -1192,6 +1246,7 @@ function openWeek(){V.week=true;V.weekOf=weekStart(V.date);if(V.tray)setTray(fal
 function closeWeek(){V.week=false;E.weekPage.classList.remove('on')}
 function renderWeek(){
   const ws=V.weekOf,days=Array.from({length:7},(_,i)=>addD(ws,i)),t=todayS(),nm=nowMin(),we=days[6];
+  days.forEach(ensureDate);
   const a=pd(ws),b=pd(we);
   E.wpRange.textContent=a.getMonth()===b.getMonth()?`${MONS[a.getMonth()]} ${a.getDate()} – ${b.getDate()}`:`${shortDay(ws)} – ${shortDay(we)}`;
   const wb=S.blocks.filter(x=>x.date>=ws&&x.date<=we),real=wb.filter(x=>!x.ghost),ghosts=wb.filter(x=>x.ghost);
@@ -1266,6 +1321,14 @@ function renderStrive(){
   const typed=$('#svNew',E.svBody);const keep=typed?typed.value:'';E.svBody.innerHTML=h;if(keep)$('#svNew',E.svBody).value=keep;
 }
 
+function setRepeat(b,days){
+  let r=b.seriesId&&S.series.find(x=>x.id===b.seriesId);
+  if(!days.length){if(r&&(!r.until||b.date<=r.until)){r.until=b.date;refreshSeries(r,b.date)}return}
+  if(!r||(r.until&&b.date>r.until)){r={id:uid(),tplId:b.tplId,name:b.name,color:b.color,varId:b.varId,start:b.start,dur:b.dur,notes:b.notes||'',days:[],from:b.date,until:null,gen:{[b.date]:1},skip:{}};S.series.push(r);b.seriesId=r.id}
+  else r.until=null;
+  r.days=[...new Set(days)].sort();refreshSeries(r,b.date);
+}
+function removeBlock(b,snap,msg){S.blocks=S.blocks.filter(x=>x.id!==b.id&&x.movedTo!==b.id);if(V.sheet)V.sheet.onClose=null;save();closeSheet();renderDay();toast(msg||`Deleted ${b.name}`,snap)}
 /* ---------- actions ---------- */
 const A={
   undo(){if(V.undo){S=fix(JSON.parse(V.undo));V.undo=null;saveNow();applyTheme();if(V.sheet&&V.sheet.kind==='block'){V.sheet.orig=(findB(V.sheet.id)||{}).start}renderAll()}E.toast.classList.remove('on')},
@@ -1308,7 +1371,18 @@ const A={
     if(!o||o.v!==1||!Array.isArray(o.blocks)){toast("That doesn't look like a Dayblock backup");return}
     const snap=snapshot();S=fix(o);saveNow();applyTheme();closeSheet();renderAll();toast('Backup restored',snap)},
   sample(){const snap=snapshot(),th=S.theme;S=seed();S.theme=th;saveNow();V.date=todayS();closeSheet();renderAll();scrollToNow();toast('Sample week loaded',snap)},
-  clear(){const snap=snapshot();S.blocks=[];S.hlog={};S.log=[];S.timer=null;saveNow();closeSheet();renderAll();toast('Schedule cleared',snap)},
+  clear(){const snap=snapshot();S.blocks=[];S.series=[];S.hlog={};S.log=[];S.timer=null;saveNow();closeSheet();renderAll();toast('Schedule cleared',snap)},
+  fresh(){const snap=snapshot(),th=S.theme;S=blankState(S.templates);S.theme=th;saveNow();V.date=todayS();closeSheet();if(V.drawer)setDrawer(false);renderAll();scrollToNow();toast('Started fresh',snap)},
+  rstop(el){const snap=snapshot(),r=S.series.find(x=>x.id===el.dataset.r),t=todayS();if(!r)return;r.until=addD(t,-1);
+    S.blocks=S.blocks.filter(b=>!(b.seriesId===r.id&&b.date>=t&&!b.done));save();renderAll();toast(`${r.name} stopped repeating`,snap)},
+  rpill(el){const b=findB(V.sheet.id),dow=pd(b.date).getDay(),m={off:[],wk:[dow],wd:[1,2,3,4,5],ev:[0,1,2,3,4,5,6]};setRepeat(b,m[el.dataset.v]);save();renderDay();drawSheet()},
+  rday(el){const b=findB(V.sheet.id),dow=pd(b.date).getDay(),i=+el.dataset.v,r=b.seriesId&&S.series.find(x=>x.id===b.seriesId);
+    const cur=r&&(!r.until||b.date<=r.until)?r.days.slice():[];let days;
+    if(!cur.length)days=i===dow?[dow]:[dow,i];else days=cur.includes(i)?cur.filter(x=>x!==i):cur.concat(i);
+    setRepeat(b,days);save();renderDay();drawSheet()},
+  ruse(){const b=findB(V.sheet.id),r=S.series.find(x=>x.id===b.seriesId);if(!r)return;r.start=b.start;r.dur=b.dur;r.varId=b.varId;r.notes=b.notes||'';refreshSeries(r,b.date);save();renderDay();drawSheet();toast('Future repeats updated')},
+  bdel1(){const snap=snapshot(),b=findB(V.sheet.id),r=S.series.find(x=>x.id===b.seriesId);if(r)r.skip[b.date]=1;closePop();removeBlock(b,snap)},
+  bdelall(){const snap=snapshot(),b=findB(V.sheet.id),r=S.series.find(x=>x.id===b.seriesId);closePop();if(r){r.until=addD(b.date,-1);S.blocks=S.blocks.filter(x=>!(x.seriesId===r.id&&x.date>b.date&&!x.done))}removeBlock(b,snap,`${b.name} and all later repeats deleted`)},
   // blocks
   bchk(el){const b=findB(el.dataset.id);if(!b)return;b.done=!b.done;save();renderDay();if(V.week)renderWeek()},
   bvar(el){const b=findB(el.dataset.id),t=b&&tplOf(b);if(!t)return;
@@ -1329,8 +1403,10 @@ const A={
   bpush(){const snap=snapshot(),b=findB(V.sheet.id);V.sheet.orig=b.start;
     if(!b.done&&isPast(b)&&!S.blocks.some(g=>g.ghost&&g.movedTo===b.id&&g.date===b.date)){S.blocks.push({id:uid(),date:b.date,start:b.start,dur:b.dur,tplId:b.tplId,name:b.name,color:b.color,varId:b.varId,ghost:true,movedTo:b.id});b.moved=(b.moved||0)+1}
     b.date=addD(b.date,1);save();closeSheet();renderDay();toast(`${b.name} pushed to tomorrow`,snap)},
-  bdup(){const snap=snapshot(),b=findB(V.sheet.id),n=Object.assign({},b,{id:uid(),start:clamp(b.start+b.dur,0,1440-b.dur),done:false,moved:0});S.blocks.push(n);save();closeSheet();renderDay();flashBlock(n.id,true);toast('Duplicated',snap)},
-  bdel(){const snap=snapshot(),id=V.sheet.id,b=findB(id);S.blocks=S.blocks.filter(x=>x.id!==id&&x.movedTo!==id);V.sheet.onClose=null;save();closeSheet();renderDay();toast(`Deleted ${b.name}`,snap)},
+  bdup(){const snap=snapshot(),b=findB(V.sheet.id),n=Object.assign({},b,{id:uid(),start:clamp(b.start+b.dur,0,1440-b.dur),done:false,moved:0,seriesId:null});S.blocks.push(n);save();closeSheet();renderDay();flashBlock(n.id,true);toast('Duplicated',snap)},
+  bdel(el){const b=findB(V.sheet.id),r=b.seriesId&&S.series.find(x=>x.id===b.seriesId);
+    if(r&&(!r.until||b.date<=r.until)){openPop(`<div class="ptitle">This block repeats</div><button data-a="bdel1">Delete just this one</button><button data-a="bdelall" style="color:var(--red)">This and all after</button>`,el.getBoundingClientRect());return}
+    removeBlock(b,snapshot())},
   gshow(){const g=findB(V.sheet.id),to=g&&findB(g.movedTo);closeSheet();if(!to)return;if(to.date!==V.date){V.date=to.date;renderHeader();renderStrip();renderDay()}setTimeout(()=>flashBlock(to.id,true),60)},
   gdel(){const snap=snapshot(),g=findB(V.sheet.id);S.blocks=S.blocks.filter(x=>x.id!==g.id);const to=findB(g.movedTo);if(to&&to.moved)to.moved--;save();closeSheet();renderDay();toast('Marker removed',snap)},
   // timer
@@ -1359,7 +1435,7 @@ const A={
   vrm(el){V.tdraft.vars.splice(+el.dataset.i,1);drawSheet()},
   tsave(){const d=V.tdraft,n=d.name.trim();if(!n){toast('Give it a name first');return}
     d.name=n;d.vars=d.vars.filter(v=>v.name.trim()).map(v=>Object.assign(v,{name:v.name.trim(),dur:clamp(parseInt(v.dur)||d.dur,5,720)}));
-    if(d.id){const t=tplById(d.id);Object.assign(t,d);const ids=new Set(t.vars.map(v=>v.id));S.blocks.forEach(b=>{if(b.tplId===t.id){b.name=t.name;b.color=t.color;if(b.varId&&!ids.has(b.varId))b.varId=null}})}
+    if(d.id){const t=tplById(d.id);Object.assign(t,d);const ids=new Set(t.vars.map(v=>v.id));S.series.forEach(r=>{if(r.tplId===t.id){r.name=t.name;r.color=t.color;if(r.varId&&!ids.has(r.varId))r.varId=null}});S.blocks.forEach(b=>{if(b.tplId===t.id){b.name=t.name;b.color=t.color;if(b.varId&&!ids.has(b.varId))b.varId=null}})}
     else{d.id=uid();S.templates.push(d)}
     save();closeSheet();renderTray();renderDay();if(V.week)renderWeek()},
   tdel(){const snap=snapshot(),d=V.tdraft;S.templates=S.templates.filter(t=>t.id!==d.id);save();closeSheet();renderTray();renderDay();toast(`Deleted ${d.name}`,snap)}
@@ -1394,7 +1470,7 @@ const F={
 document.addEventListener('input',e=>{const f=e.target.dataset&&e.target.dataset.f;if(f&&F[f])F[f](e.target)});
 document.addEventListener('keydown',e=>{
   if(e.key==='Enter'&&!e.isComposing&&e.target.dataset&&e.target.dataset.enter&&A[e.target.dataset.enter]){e.preventDefault();A[e.target.dataset.enter](e.target);return}
-  if(e.target.closest('input,textarea'))return;
+  if(e.target.closest&&e.target.closest('input,textarea'))return;
   if(e.key==='Escape'){if(E.pop.classList.contains('on'))closePop();else if(V.sheet)closeSheet();else if(V.strive)closeStrive();else if(V.week)closeWeek();else if(V.drawer)setDrawer(false);else if(V.tray)setTray(false)}
   else if(!V.sheet&&!V.drawer&&!V.strive){if(e.key==='ArrowRight'){V.week?changeWeek(1):slideTo(addD(V.date,1))}else if(e.key==='ArrowLeft'){V.week?changeWeek(-1):slideTo(addD(V.date,-1))}}
 });
@@ -1421,7 +1497,7 @@ document.addEventListener('visibilitychange',()=>{
 });
 
 /* ---------- init ---------- */
-S=load();if(!S){S=seed();saveNow()}
+S=load();if(!S){S=blankState();saveNow()}
 applyTheme();initDOM();renderAll();scrollToNow();requestAnimationFrame(()=>scrollToNow());
 if(MQ.addEventListener)MQ.addEventListener('change',()=>{applyTheme();renderAll()});
 requestAnimationFrame(()=>document.body.classList.add('ready'));
